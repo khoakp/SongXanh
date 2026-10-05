@@ -1,0 +1,27 @@
+'use client'
+
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { Tree } from '@/components/games-page'
+
+type Profile = { display_name: string; school: string; faculty: string; class_name: string; avatar_url: string | null; total_points: number; streak_days: number; hide_from_leaderboard: boolean; tree_level: number }
+type Badge = { awarded_at: string; badge: { name: string; icon: string | null; requirement: string | null; campaign_id?: string | null; campaign?: { name: string } | { name: string }[] | null } | null }
+type Activity = { status: string; updated_at: string; task: { title: string } | { title: string }[] | null }
+
+export function ProfileClient({ email, profile, deletionStatus, badges = [], activity = [] }: { email: string; profile: Profile | null; deletionStatus?: string | null; badges?: Badge[]; activity?: Activity[] }) {
+  const router = useRouter()
+  const [saved, setSaved] = useState(false)
+  const [hidden, setHidden] = useState(profile?.hide_from_leaderboard ?? false)
+  async function save(data: FormData) {
+    const response = await fetch('/api/profile', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ display_name: data.get('display_name'), school: data.get('school'), faculty: data.get('faculty'), class_name: data.get('class_name'), hide_from_leaderboard: hidden }) })
+    setSaved(response.ok)
+  }
+  async function requestDeletion() {
+    if (!window.confirm('Bạn có chắc muốn gửi yêu cầu xóa dữ liệu?')) return
+    const response = await fetch('/api/profile', { method: 'DELETE' })
+    setSaved(response.ok)
+  }
+  async function logout() { await fetch('/auth/sign-out', { method: 'POST' }).catch(() => null); router.push('/') }
+  const level = Math.max(0, Math.min(4, profile?.tree_level ?? 0)) as 0 | 1 | 2 | 3 | 4
+  return <main className="min-h-screen bg-[#f8fbf5] px-5 py-8 text-[#173b2b]"><div className="mx-auto max-w-2xl"><div className="flex items-center justify-between"><a href="/" className="font-black">← Sống Xanh Campus</a><button onClick={logout} className="rounded-full border border-[#bcd5b6] px-4 py-2 text-sm font-bold">Đăng xuất</button></div>{deletionStatus && <p className="mt-4 rounded-2xl bg-white p-4 text-sm font-bold">Trạng thái yêu cầu xóa dữ liệu: {deletionStatus === 'pending' ? 'Đang chờ xử lý' : deletionStatus === 'processed' ? 'Đã xử lý' : 'Từ chối'}</p>}<section className="mt-8 rounded-[2rem] bg-[#e8f5d7] p-6 sm:p-9"><p className="text-sm font-bold text-[#52705a]">{email}</p><h1 className="mt-2 text-4xl font-black">Hồ sơ của bạn</h1><div className="mt-6 grid grid-cols-2 gap-3"><div className="rounded-2xl bg-white p-4"><b className="block text-2xl">{profile?.total_points ?? 0}</b><span className="text-sm font-bold text-[#52705a]">Tổng điểm</span></div><div className="rounded-2xl bg-white p-4"><b className="block text-2xl">{profile?.streak_days ?? 0}</b><span className="text-sm font-bold text-[#52705a]">Ngày liên tiếp</span></div></div><div className="mt-5 rounded-2xl bg-white p-5"><p className="text-sm font-bold text-[#72ad42]">Cây của bạn</p><div className="mt-3 max-w-xs"><Tree level={level} /></div></div><form action={save} className="mt-5 grid gap-3 rounded-2xl bg-white p-5"><h2 className="font-black">Thông tin cá nhân</h2>{[['display_name','Tên hiển thị',profile?.display_name],['school','Trường',profile?.school],['faculty','Khoa',profile?.faculty],['class_name','Lớp',profile?.class_name]].map(([name,label,value]) => <label key={name} className="grid gap-1 text-sm font-bold">{label}<input name={name} defaultValue={value ?? ''} className="rounded-xl border border-[#d7e8d0] px-3 py-2 font-normal" /></label>)}<label className="flex items-center gap-2 text-sm font-bold"><input type="checkbox" checked={hidden} onChange={(event) => setHidden(event.target.checked)} /> Ẩn tên trên bảng xếp hạng</label><button className="rounded-full bg-[#173b2b] px-4 py-3 text-sm font-bold text-white">Lưu thay đổi</button>{saved && <p className="text-sm text-[#477b50]">Đã cập nhật.</p>}</form><section className="mt-5 rounded-2xl bg-white p-5"><h2 className="font-black">Huy hiệu</h2><div className="mt-3 grid gap-3">{badges.length ? badges.map((item) => <div key={item.awarded_at + item.badge?.name} className="rounded-xl bg-[#f1f7eb] p-3"><b>{item.badge?.icon} {item.badge?.name}</b>{item.badge?.requirement && <p className="text-sm text-[#52705a]">{item.badge.requirement}</p>}</div>) : <p className="text-sm text-[#52705a]">Bạn chưa có huy hiệu nào.</p>}</div></section><section className="mt-5 rounded-2xl bg-white p-5"><h2 className="font-black">Lịch sử hoạt động</h2><div className="mt-3 grid gap-2">{activity.length ? activity.map((item) => <p key={item.updated_at} className="text-sm text-[#52705a]">{item.status === 'completed' ? 'Hoàn thành' : 'Đã nhận'}: {Array.isArray(item.task) ? item.task[0]?.title : item.task?.title}</p>) : <p className="text-sm text-[#52705a]">Chưa có hoạt động nào.</p>}</div></section><button onClick={requestDeletion} className="mt-6 text-sm font-bold text-[#9b4e42] underline">Xóa dữ liệu của tôi</button></section></div></main>
+}

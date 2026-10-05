@@ -1,0 +1,8 @@
+import { notFound } from 'next/navigation'
+import { ArticleDetail } from '@/components/content-hub'
+import { createClient } from '@/lib/supabase/server'
+
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) { const { slug } = await params; const supabase = await createClient(); const { data } = await supabase.from('articles').select('title,excerpt,cover_url').eq('slug', slug).eq('published', true).eq('category', 'guong-sang').eq('subject_consented', true).maybeSingle(); return { title: data?.title || 'Bài viết | Sống Xanh Campus', description: data?.excerpt || 'Đọc nội dung xanh từ Sống Xanh Campus.', openGraph: { title: data?.title || 'Bài viết | Sống Xanh Campus', description: data?.excerpt || 'Đọc nội dung xanh từ Sống Xanh Campus.', images: [{ url: data?.cover_url || '/og-song-xanh.png', width: 1200, height: 630, alt: data?.title || 'Sống Xanh Campus' }] }, twitter: { card: 'summary_large_image', images: [data?.cover_url || '/og-song-xanh.png'] } } }
+export default async function ArticlePage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params; const supabase = await createClient(); const [{ data: article }, { data: auth }] = await Promise.all([supabase.from('articles').select('id,slug,title,excerpt,content,cover_url,category,source,source_url,illustration_label,created_at,author:users(display_name),quiz:quiz_questions(question,options)').eq('slug', slug).eq('published', true).eq('category', 'guong-sang').eq('subject_consented', true).maybeSingle(), supabase.auth.getUser()]); if (!article) notFound(); return <ArticleDetail article={article as never} userId={auth.user?.id ?? null} />
+}
