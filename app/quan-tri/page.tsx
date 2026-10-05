@@ -19,7 +19,7 @@ export default async function AdminPage() {
     supabase.from('articles').select('id,title,slug,status,published,category,featured,excerpt,content,source,source_url,author_name,review_status'),
     supabase.from('quiz_questions').select('id,question,active,game_type'),
     supabase.from('campaigns').select('id,name,description,active,starts_at,ends_at,banner_url,published'),
-    supabase.from('users').select('id,display_name,email,locked,school,faculty').order('created_at', { ascending: false }).limit(100),
+    role === 'admin' ? supabase.rpc('admin_list_users', { p_limit: 100 }) : Promise.resolve({ data: [], error: null }),
     supabase.from('data_deletion_requests').select('id,user_id,requested_at,status,processed_at').order('requested_at', { ascending: false }),
     supabase.from('impact_factors').select('id,name,value,active'),
     supabase.from('badges').select('id,name,description,active'),

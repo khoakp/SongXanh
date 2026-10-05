@@ -3,7 +3,7 @@
 Nền tảng giúp sinh viên đo lường tác động môi trường, tham gia thử thách bền vững và lan tỏa lối sống xanh trong campus.
 
 ## Thứ tự triển khai Supabase
-Chạy theo thứ tự: `scripts/schema.sql` → `scripts/rls.sql` → `scripts/functions.sql` → `scripts/seed.sql`. Sau đó chạy migration trong `scripts/2026-10-05-privacy-and-deletion.sql` và kiểm tra RLS trước khi dùng production.
+Chạy theo thứ tự: `scripts/schema.sql` → `scripts/rls.sql` → `scripts/functions.sql` → `scripts/auth-sync.sql` → `scripts/seed.sql`. Sau đó chạy migration trong `scripts/2026-10-05-privacy-and-deletion.sql` và kiểm tra RLS trước khi dùng production.
 
 ## Cài đặt và chạy dự án
 
