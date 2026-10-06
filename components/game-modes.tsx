@@ -1,5 +1,7 @@
 'use client'
 
+import Link from 'next/link'
+
 import { useEffect, useState } from 'react'
 
 const categories = [
@@ -97,7 +99,7 @@ export function GameModes({ scoreToday }: { scoreToday: number }) {
     <section className="rounded-[2rem] bg-[#173b2b] p-6 text-white">
       <p className="text-sm font-black uppercase tracking-[0.15em] text-[#b8e45c]">Trò chơi 2</p>
       <h2 className="mt-2 text-2xl font-black">Một ngày của sinh viên</h2>
-      {scenario && step ? <>{scenario.description && <p className="mt-2 text-sm leading-6 text-[#d2e4d5]">{scenario.description}</p>}<div className="mt-6 rounded-3xl bg-white/10 p-5"><p className="text-lg font-bold leading-7">{scenarioResult ? 'Tổng kết hành trình' : step.prompt}</p>{scenarioResult ? <><p className="mt-4 text-4xl font-black text-[#b8e45c]">{scenarioResult.planet}</p><p className="mt-2 text-sm text-[#d2e4d5]">điểm Hành tinh, cộng {scenarioResult.points} điểm game.</p><a href="/thu-thach" className="mt-5 inline-flex rounded-full bg-[#b8e45c] px-4 py-3 text-sm font-black text-[#173b2b]">Nhận thử thách liên quan</a></> : <div className="mt-5 grid gap-3">{step.options.map((option) => <button key={option.id} onClick={() => chooseScenario(option.id)} className="rounded-2xl border border-white/20 p-4 text-left text-sm font-bold hover:bg-white/10">{option.label}</button>)}</div>}</div></> : <p className="mt-6 rounded-2xl bg-white/10 p-5 text-sm text-[#d2e4d5]">Chưa có kịch bản đang hoạt động.</p>}
+      {scenario && step ? <>{scenario.description && <p className="mt-2 text-sm leading-6 text-[#d2e4d5]">{scenario.description}</p>}<div className="mt-6 rounded-3xl bg-white/10 p-5"><p className="text-lg font-bold leading-7">{scenarioResult ? 'Tổng kết hành trình' : step.prompt}</p>{scenarioResult ? <><p className="mt-4 text-4xl font-black text-[#b8e45c]">{scenarioResult.planet}</p><p className="mt-2 text-sm text-[#d2e4d5]">điểm Hành tinh, cộng {scenarioResult.points} điểm game.</p><Link href="/thu-thach" className="mt-5 inline-flex rounded-full bg-[#b8e45c] px-4 py-3 text-sm font-black text-[#173b2b]">Nhận thử thách liên quan</Link></> : <div className="mt-5 grid gap-3">{step.options.map((option) => <button key={option.id} onClick={() => chooseScenario(option.id)} className="rounded-2xl border border-white/20 p-4 text-left text-sm font-bold hover:bg-white/10">{option.label}</button>)}</div>}</div></> : <p className="mt-6 rounded-2xl bg-white/10 p-5 text-sm text-[#d2e4d5]">Chưa có kịch bản đang hoạt động.</p>}
     </section>
   </div>
 }

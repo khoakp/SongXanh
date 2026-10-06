@@ -31,3 +31,11 @@ auth-refresh-verification.json
 tsconfig.tsbuildinfo
 
 test-results
+
+# Local layout verification artifacts
+LAYOUT_AUDIT.md
+layout-baseline.json
+layout-*.png
+layout-test-results/
+audit-layout-baseline.mjs
+verify-layout.mjs

@@ -2,7 +2,8 @@ import { Analytics } from '@vercel/analytics/next'
 import { Be_Vietnam_Pro } from 'next/font/google'
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
-import { SharedNavigation } from '@/components/shared-navigation'
+import { SiteHeader } from '@/components/site-header'
+import { SiteFooter } from '@/components/site-footer'
 
 const beVietnamPro = Be_Vietnam_Pro({ weight: ['400', '600', '700', '800'], subsets: ['vietnamese', 'latin'], display: 'swap', variable: '--font-be-vietnam-pro' })
 
@@ -46,9 +47,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="vi" suppressHydrationWarning>
-      <body suppressHydrationWarning className={`${beVietnamPro.variable} antialiased`}>
-        <SharedNavigation />
-        {children}
+      <body suppressHydrationWarning className={`${beVietnamPro.variable} flex min-h-dvh flex-col bg-[#f8fbf5] antialiased`}>
+        <a href="#page-content" className="skip-link">Bỏ qua điều hướng</a>
+        <SiteHeader />
+        <div id="page-content" tabIndex={-1} className="min-w-0 flex-1">{children}</div>
+        <SiteFooter />
         {process.env.VERCEL === '1' && <Analytics />}
       </body>
     </html>
