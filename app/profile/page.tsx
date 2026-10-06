@@ -14,5 +14,5 @@ export default async function ProfilePage() {
     supabase.from('carbon_results').select('created_at,total_kg').eq('user_id', user.id).order('created_at', { ascending: false }).limit(20),
   ])
   const combinedActivity = [...(activity ?? []), ...(carbonResults ?? []).map((row) => ({ status: 'carbon', updated_at: row.created_at, task: { title: `Dấu chân carbon: ${Number(row.total_kg).toFixed(2)} kg CO₂` } }))].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()).slice(0, 20)
-  return <ProfileClient email={user.email || ''} profile={profile} deletionStatus={deletionRequest?.status ?? null} activity={combinedActivity} badges={(badges || []).map((row) => ({ awarded_at: row.awarded_at, badge: Array.isArray(row.badge) ? row.badge[0] : row.badge }))} />
+  return <ProfileClient key={user.id} email={user.email || ''} profile={profile} deletionStatus={deletionRequest?.status ?? null} activity={combinedActivity} badges={(badges || []).map((row) => ({ awarded_at: row.awarded_at, badge: Array.isArray(row.badge) ? row.badge[0] : row.badge }))} />
 }

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Tree } from '@/components/games-page'
+import { createClient } from '@/lib/supabase/client'
 
 type Profile = { display_name: string; school: string; faculty: string; class_name: string; avatar_url: string | null; total_points: number; streak_days: number; hide_from_leaderboard: boolean; tree_level: number }
 type Badge = { awarded_at: string; badge: { name: string; icon: string | null; requirement: string | null; campaign_id?: string | null; campaign?: { name: string } | { name: string }[] | null } | null }
@@ -24,7 +25,12 @@ export function ProfileClient({ email, profile, deletionStatus, badges = [], act
   async function logout() {
     try {
       const response = await fetch('/auth/sign-out', { method: 'POST' })
-      if (response.ok) { router.push('/'); router.refresh() }
+      if (response.ok) {
+        // Notify browser listeners as well as clearing the server cookies.
+        await createClient().auth.signOut({ scope: 'local' })
+        router.replace('/')
+        router.refresh()
+      }
       else window.alert('Đăng xuất chưa thành công, vui lòng thử lại.')
     } catch { window.alert('Đăng xuất chưa thành công, vui lòng thử lại.') }
   }

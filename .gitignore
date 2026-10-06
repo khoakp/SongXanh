@@ -22,4 +22,12 @@ content-baseline.json
 CONTENT_SOURCES.md
 GOAL_PROGRESS.md
 
+# Local authentication verification reports
+AUTH_AUDIT.md
+auth-production-baseline.json
+auth-google-browser.json
+auth-deployment-candidate.json
+auth-refresh-verification.json
+tsconfig.tsbuildinfo
+
 test-results

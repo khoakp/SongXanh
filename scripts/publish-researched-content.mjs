@@ -1,6 +1,22 @@
 // Normal admin UI only. No service key, SQL, persisted login state or score-changing actions.
 import fs from 'node:fs'
 import { chromium } from '@playwright/test'
+import { createServerClient } from '@supabase/ssr'
+let db
+const dbTable = table => table === 'quiz' ? 'quiz_questions' : table
+const persistedFields = { articles: 'id,title,slug,category,excerpt,content,source,source_url,author_name,cover_url,illustration_label,review_status,published,subject_consented', quiz: 'id,question,options,game_type,explanation,source,active', challenges: 'id,title,slug,description,points,duration_days,topic,active', tasks: 'id,title,challenge_id,description,points,day_number,why,requires_photo,active', waste_items: 'id,name,category,explanation,difficulty,active', campaigns: 'id,name,slug,description,starts_at,ends_at,published,banner_url,active' }
+async function readRows(table) { const r=await db.from(dbTable(table)).select(persistedFields[table]); requireCheck(!r.error, 'Read verification failed for '+table+' ('+(r.error?.code||'unknown')+')'); return r.data }
+async function verifyPersisted(table,item,record,beforePublish=false) {
+ const rows=await readRows(table); const r=rows.find(x=>x.id===record.id); requireCheck(r,'Record missing: '+table);
+ for(const key of Object.keys(config[table][1])) { if(item[key]==null || key==='correct_answer')continue; const actual=r[key]; const expected=item[key]; requireCheck(['starts_at','ends_at'].includes(key)?new Date(actual).getTime()===new Date(expected).getTime():String(actual)===String(expected),'Persisted field mismatch: '+table+' / '+key); }
+ if(table==='quiz') requireCheck(r.game_type==='true-false'&&JSON.stringify(r.options)===JSON.stringify(['Đúng','Sai'])&&r.active===true,'Quiz options/type/active mismatch');
+ if(table==='tasks')requireCheck(r.requires_photo===false&&r.active===true,'Task photo/active mismatch');
+ if(['challenges','waste_items'].includes(table))requireCheck(r.active===true,'Active mismatch');
+ if(table==='articles'){requireCheck(!r.cover_url&&!r.subject_consented,'Unexpected image/consent');if(beforePublish)requireCheck(r.review_status==='draft'&&!r.published,'Article not created as draft');}
+ if(table==='campaigns'){requireCheck(!r.banner_url,'Unexpected campaign image');if(beforePublish)requireCheck(!r.published,'Campaign not created unpublished');}
+ if(!beforePublish&&['articles','campaigns'].includes(table))requireCheck(r.published===true,'Publication did not persist');
+ record.verification.persisted_fields=true; record.publication_state=beforePublish?'DRAFT':['articles','campaigns'].includes(table)?'PUBLISHED':'ACTIVE'; saveLedger(); return r;
+}
 const base = 'https://song-xanh.vercel.app'
 const drafts = JSON.parse(fs.readFileSync('content-drafts.json', 'utf8'))
 const ledger = JSON.parse(fs.readFileSync('content-sources.json', 'utf8'))
@@ -18,10 +34,13 @@ const config = {
   campaigns: ['Chiến dịch', { name: 'Tên chiến dịch', slug: 'Slug', description: 'Thông điệp', starts_at: 'Bắt đầu (giờ Việt Nam)', ends_at: 'Kết thúc (giờ Việt Nam)' }],
 }
 function saveLedger() {
+  for(const i of ledger.items){const p=ledger.prepared_localization_review?.find(x=>x.key===i.prepared_key);if(p)p.production_status=i.publication_state||'CREATED';}
+
   fs.writeFileSync('content-sources.json', JSON.stringify(ledger, null, 2) + '\n')
   const intro = fs.readFileSync('CONTENT_SOURCES.md', 'utf8').split('\n## Production items\n')[0].replace('No new production records have been created yet.', 'New production records are listed below with per-item verification.').replace('Production creation, draft preview, publication, persistence and public rendering are pending deployment of the CMS fixes.', 'See per-item verification below for creation, preview, publication and public-render status.')
-  const entries = ledger.items.map((item) => '- **' + item.type + ': ' + item.title + '**; slug: `' + item.slug + '`; URL: ' + item.public_url + '; sources: ' + item.sources.map((source) => source.publisher + ' — ' + source.title + ' (' + source.url + ', accessed ' + source.accessed_date + ')').join('; ') + '; images: existing UI fallback, no external image; verification: `' + JSON.stringify(item.verification) + '`.').join('\n')
-  fs.writeFileSync('CONTENT_SOURCES.md', intro + '\n## Production items\n\n' + entries + '\n')
+  const entries = ledger.items.map((item) => '- **' + item.type + ': ' + item.title + '**; slug: `' + item.slug + '`; URL: ' + item.public_url + '; sources: ' + item.sources.map((source) => source.publisher + ' — ' + source.title + ' (' + source.url + ', accessed ' + source.accessed_date + ')').join('; ') + '; status: '+(item.publication_state||'CREATED')+'; ID: '+item.id+'; localization: '+item.localization.status+'; images: existing UI fallback, no external image; verification: `' + JSON.stringify(item.verification) + '`.').join('\n')
+  const reviews=(ledger.prepared_localization_review||[]).map(x=>'- '+x.title+' — '+x.status+'; '+x.production_status).join('\n');
+  fs.writeFileSync('CONTENT_SOURCES.md', intro + '\n## Production items\n\n' + entries + '\n\n## Vietnam-localization review\n\n'+reviews+'\n\nVietnam sources: '+drafts.sources.vn_waste.url+' ; '+drafts.sources.vn_air.url+'\n')
 }
 function requireCheck(condition, message) { if (!condition) throw new Error(message) }
 function titleOf(item) { return item.title || item.name || item.question }
@@ -61,19 +80,21 @@ async function verifyPublic(reader, record, item, table) {
   saveLedger()
 }
 async function createThroughForm(page, reader, table, item) {
-  let record = ledger.items.find((entry) => entry.type === item.type && entry.slug === item.slug)
+  requireCheck(['VIETNAM-VERIFIED','GENERAL-GLOBAL-GUIDANCE'].includes(item.localization?.status),'Blocked localization: '+item.slug)
+  let record = ledger.items.find((entry) => entry.type === item.type && entry.prepared_key === item.slug)
   if (record) {
     requireCheck(!record.verification.publication_failed, 'Publication audit recovery required; no automatic retry')
     requireCheck(record.id && record.verification.audit_logged, 'Existing ledger entry needs manual audit recovery; no automatic retry')
   } else {
     await reloadAdmin(page)
     await selectSection(page, table)
-    requireCheck(await (await rowFor(page, titleOf(item))).count() === 0, 'Title already exists without ledger entry; stop to prevent duplication')
+    const existing=(await readRows(table)).find(x=>[x.title,x.name,x.question].includes(titleOf(item)) || (['articles','challenges','campaigns'].includes(table)&&x.slug===item.slug));
+    if(existing){const review=ledger.prepared_localization_review?.find(x=>x.key===item.slug);if(review)review.production_status='SKIPPED_EXISTING';ledger.skipped_existing??=[];ledger.skipped_existing.push({type:item.type,title:titleOf(item),id:existing.id,slug:existing.slug||null,localization:item.localization,status:'SKIPPED_EXISTING'});saveLedger(); console.log('SKIPPED_EXISTING:',table,item.slug); return {id:existing.id,skipped_existing:true};}
     for (const [key, label] of Object.entries(config[table][1])) {
       if (item[key] === undefined || item[key] === null) continue
       const field = page.getByLabel(label, { exact: true })
       let value = String(item[key])
-      if (key === 'starts_at' || key === 'ends_at') value = value.slice(0, 16)
+      if (key === 'starts_at' || key === 'ends_at') value = value.slice(0, 19).replace(/:00$/, '')
       if (key === 'correct_answer' || (table === 'waste_items' && key === 'category')) await field.selectOption(value)
       else await field.fill(value)
     }
@@ -83,10 +104,12 @@ async function createThroughForm(page, reader, table, item) {
     const response = await responsePromise
     const result = await response.json().catch(() => null)
     requireCheck(result?.id, 'CMS did not return a saved ID; inspect current state before retrying')
-    record = { type: item.type, title: titleOf(item), slug: item.slug, id: result.id, public_url: publicUrl(table, item, result.id), created_date: new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date()), sources: item.source_ids.map((key) => drafts.sources[key]), images: drafts.images, verification: { created_through_admin_ui: true, audit_logged: response.ok(), source_verified: true, original_copy_reviewed: true, public_render: false, published: false } }
+    record = { type: item.type, title: titleOf(item), prepared_key: item.slug, localization:item.localization, publication_state:'CREATED', slug: ['articles','challenges','campaigns'].includes(table)?item.slug:null, id: result.id, public_url: publicUrl(table, item, result.id), created_date: new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date()), sources: item.source_ids.map((key) => drafts.sources[key]), images: drafts.images, verification: { created_through_admin_ui: true, audit_logged: response.ok(), source_verified: true, original_copy_reviewed: true, public_render: false, published: false } }
     ledger.items.push(record)
     saveLedger()
     requireCheck(response.ok(), 'Record saved but audit failed; do not resubmit')
+    await (await rowFor(page,titleOf(item))).waitFor(); record.verification.admin_refresh=true; saveLedger();
+    await verifyPersisted(table,item,record,['articles','campaigns'].includes(table));
   }
   await reloadAdmin(page)
   await selectSection(page, table)
@@ -97,6 +120,9 @@ async function createThroughForm(page, reader, table, item) {
     await preview.goto(record.public_url)
     await preview.getByRole('heading', { level: 1, name: item.title, exact: true }).waitFor()
     await preview.getByText(/Bản xem trước dành cho biên tập viên/).waitFor()
+    requireCheck(await preview.locator('a[href="'+item.source_url+'"]').count()>0,'Draft source link missing');
+    requireCheck(await preview.locator('article img').count()===0,'Unexpected draft image');
+    requireCheck(await preview.locator('article svg').count()>0,'Fallback illustration missing');
     requireCheck(await preview.locator('article').innerText().then((text) => text.includes(item.content.split('\n')[0])), 'Draft preview content missing')
     await preview.close()
     record.verification.draft_preview = true
@@ -116,6 +142,7 @@ async function createThroughForm(page, reader, table, item) {
     record.verification.published = true
     saveLedger()
   }
+  await verifyPersisted(table,item,record);
   if (!['quiz', 'waste_items'].includes(table)) await verifyPublic(reader, record, item, table)
   console.log('Verified CMS item:', table, item.slug)
   return record
@@ -128,12 +155,18 @@ async function createThroughForm(page, reader, table, item) {
     browser = await chromium.launch({ headless: true })
     const context = await browser.newContext({ timezoneId: 'Asia/Ho_Chi_Minh' })
     const page = await context.newPage()
+    context.on('page',p=>p.on('pageerror',()=>{ledger.browser_errors=(ledger.browser_errors||0)+1;saveLedger()}));
+    page.on('pageerror',()=>{ledger.browser_errors=(ledger.browser_errors||0)+1;saveLedger()});
     await page.goto(base + '/auth/login?next=/quan-tri')
     await page.locator('input[name=email]').fill(env.TEST_ADMIN_EMAIL)
     await page.locator('input[name=password]').fill(env.TEST_ADMIN_PASSWORD)
     await page.locator('form button').first().click()
     await page.waitForURL('**/quan-tri')
     await page.getByText(/Vai trò hiện tại: Admin/).waitFor()
+    const publicEnv={}; for(const line of fs.readFileSync('.env','utf8').split(/\r?\n/)){const m=line.match(/^\s*(NEXT_PUBLIC_SUPABASE_(?:URL|PUBLISHABLE_KEY|ANON_KEY))\s*=\s*(.*)\s*$/);if(m)publicEnv[m[1]]=m[2].trim().replace(/^(['"])(.*)\1$/,'$2');}
+    db=createServerClient(publicEnv.NEXT_PUBLIC_SUPABASE_URL,publicEnv.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY||publicEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,{cookieEncoding:'base64url',cookies:{getAll:async()=>await context.cookies(base),setAll:()=>{}}});
+    const {data:{user},error:authError}=await db.auth.getUser();requireCheck(!authError&&user,'Normal browser session verification failed');const role=await db.from('users').select('role').eq('id',user.id).single();requireCheck(role.data?.role==='admin','Admin role verification failed');
+    for(const table of Object.keys(config))await readRows(table);
     // Preflight every creation form before performing any CMS write.
     for (const table of Object.keys(config)) {
       await selectSection(page, table)
@@ -143,18 +176,21 @@ async function createThroughForm(page, reader, table, item) {
     if (!process.argv.includes('--publish')) { console.log('Read-only check complete; publication requires --publish'); return }
     const readerContext = await browser.newContext()
     const reader = await readerContext.newPage()
+    reader.on('pageerror',()=>{ledger.browser_errors=(ledger.browser_errors||0)+1;saveLedger()});
+    reader.on('response',r=>{if(r.status()>=400&&r.url().startsWith(base)){ledger.http_failures??=[];ledger.http_failures.push({path:new URL(r.url()).pathname,status:r.status()});saveLedger()}});
     // All mutations below are normal form saves/status buttons for these specific new records.
-    for (const item of drafts.articles) await createThroughForm(page, reader, 'articles', item)
-    for (const item of drafts.quiz) await createThroughForm(page, reader, 'quiz', item)
-    for (const item of drafts.challenges) {
+    for (const item of process.argv.includes('--campaign-only')?[]:drafts.articles) await createThroughForm(page, reader, 'articles', item)
+    for (const item of process.argv.includes('--campaign-only')?[]:drafts.quiz) await createThroughForm(page, reader, 'quiz', item)
+    for (const item of process.argv.includes('--campaign-only')?[]:drafts.challenges) {
       const challenge = await createThroughForm(page, reader, 'challenges', item)
-      for (const task of item.tasks) await createThroughForm(page, reader, 'tasks', { ...task, challenge_id: challenge.id, challenge_title: item.title })
+      for (const task of challenge.skipped_existing?[]:item.tasks) await createThroughForm(page, reader, 'tasks', { ...task, challenge_id: challenge.id, challenge_title: item.title })
     }
-    for (const item of drafts.waste_items) await createThroughForm(page, reader, 'waste_items', item)
+    for (const item of process.argv.includes('--campaign-only')?[]:drafts.waste_items) await createThroughForm(page, reader, 'waste_items', item)
     for (const item of drafts.campaigns) await createThroughForm(page, reader, 'campaigns', item)
     console.log('Content creation finished; game interaction/source-link/layout checks remain to be audited separately')
   } catch (error) {
-    console.log('STOP:', error.message.startsWith('Required deployed') || error.message.startsWith('Title already') || error.message.startsWith('Record saved') ? error.message : 'Browser/CMS verification failed; inspect current state before retrying')
+    console.log('Failure category:',String(error.message).split('\n')[0].replaceAll(env.TEST_ADMIN_EMAIL||'unused-secret','<redacted>').replaceAll(env.TEST_ADMIN_PASSWORD||'unused-secret','<redacted>'));
+    console.log('STOP:', error.message.startsWith('Required deployed') || error.message.startsWith('Title already') || error.message.startsWith('Record saved') || /mismatch|missing|verification failed|Read verification|Blocked localization|Unexpected|Article not|Campaign not|Malformed value|CMS did not return/.test(error.message) ? error.message : 'Browser/CMS verification failed; inspect current state before retrying')
     process.exitCode = 1
   } finally { if (browser) await browser.close() }
 })()

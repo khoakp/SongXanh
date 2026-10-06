@@ -1,9 +1,10 @@
 'use client'
 
 import { Menu, Sprout, X } from 'lucide-react'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
 
 const links = [
   ['/','Trang chủ'],
@@ -17,22 +18,37 @@ const links = [
 
 export function SharedNavigation() {
   const pathname = usePathname()
+  const router = useRouter()
   const [open, setOpen] = useState(false)
   const [account, setAccount] = useState<{ id: string; role: string } | null>(null)
 
   useEffect(() => {
     const supabase = createClient()
     let mounted = true
-    async function loadAccount() {
+    let generation = 0
+    let timer: ReturnType<typeof setTimeout> | undefined
+    async function loadAccount(version: number) {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { if (mounted) setAccount(null); return }
+      if (!mounted || version !== generation) return
+      if (!user) { setAccount(null); return }
       const { data: profile } = await supabase.from('users').select('role').eq('id', user.id).maybeSingle()
-      if (mounted) setAccount({ id: user.id, role: String(profile?.role || '') })
+      if (mounted && version === generation) setAccount({ id: user.id, role: String(profile?.role || '') })
     }
-    loadAccount()
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => { loadAccount() })
-    return () => { mounted = false; subscription.unsubscribe() }
-  }, [])
+    void loadAccount(generation)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event: AuthChangeEvent, session: Session | null) => {
+      const version = ++generation
+      if (timer) clearTimeout(timer)
+      // Clear the previous identity immediately; never let a delayed role
+      // request from account A replace account B after switching.
+      if (event === 'SIGNED_OUT' || event === 'SIGNED_IN' || !session) setAccount(null)
+      timer = setTimeout(() => {
+        if (!mounted || version !== generation) return
+        if (session) void loadAccount(version)
+        if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') router.refresh()
+      }, 0)
+    })
+    return () => { mounted = false; ++generation; if (timer) clearTimeout(timer); subscription.unsubscribe() }
+  }, [router])
 
   if (pathname === '/') return null
 
