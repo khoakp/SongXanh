@@ -3,3 +3,5 @@ pmOnFail: ignore
 minimumReleaseAgeExclude:
   - '@next/*'
   - next
+allowBuilds:
+  unrs-resolver: false
