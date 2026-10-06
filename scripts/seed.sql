@@ -1,4 +1,8 @@
 -- Idempotent development seed. Run after functions; safe to run repeatedly.
+insert into public.badges(slug,name,description,icon,requirement,active) select v.slug,v.name,v.description,v.icon,v.requirement,true from (values
+('nguoi-moi-nhap-mon','Bước đầu xanh','Hoàn thành nhiệm vụ đầu tiên.','🌱','Hoàn thành 1 nhiệm vụ'),
+('thu-thach-tron-ven','Thử thách trọn vẹn','Hoàn thành tất cả nhiệm vụ trong một thử thách.','🏆','Hoàn thành toàn bộ nhiệm vụ của một thử thách'),
+('nguoi-doc-cham-chi','Người đọc chăm chỉ','Đọc năm bài viết xanh.','📚','Đọc 5 bài viết')) v(slug,name,description,icon,requirement) where not exists(select 1 from public.badges b where b.slug=v.slug);
 insert into public.articles(slug,title,excerpt,content,source,featured,published,author_name) select v.slug,v.title,v.excerpt,v.content,v.source,v.featured,true,v.author_name from (values
 ('guong-sang-song-xanh','Gương sáng sống xanh','Những hành động nhỏ tạo thay đổi lớn.','Sinh viên cùng xây dựng khuôn viên xanh bằng các thói quen bền vững.','Sống Xanh Campus',true,'Ban biên tập'),
 ('song-xanh-moi-ngay','Kiến thức sống xanh','Hiểu đúng để thực hành tốt hơn.','Tiết kiệm điện, giảm nhựa và phân loại rác đúng cách là những bước khởi đầu.','Sống Xanh Campus',false,'Ban biên tập'),

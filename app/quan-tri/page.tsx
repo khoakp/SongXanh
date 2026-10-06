@@ -5,7 +5,8 @@ import { AdminDashboard } from '@/components/admin-dashboard'
 export default async function AdminPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  const role = String(user?.app_metadata?.role || '')
+  const { data: account } = user ? await supabase.from('users').select('role').eq('id', user.id).maybeSingle() : { data: null }
+  const role = String(account?.role || user?.app_metadata?.role || '')
   if (!user || !['admin', 'editor'].includes(role)) redirect('/auth/login?next=/quan-tri')
   const [{ count: users }, { data: completedRows }, { data: impactData }, { count: reads }, { data: challengeRows }, { data: taskRows }, { data: wasteRows }, { data: scenarioRows }, { data: articleRows }, { data: quizRows }, { data: campaignRows }, { data: userRows }, { data: deletionRows }, { data: factorRows }, { data: badgeRows }] = await Promise.all([
     supabase.from('users').select('id', { count: 'exact', head: true }),
@@ -16,7 +17,7 @@ export default async function AdminPage() {
     supabase.from('tasks').select('id,title,description,points,day_number,why,requires_photo'),
     supabase.from('waste_items').select('id,name,category,explanation,difficulty,active'),
     supabase.from('game_scenarios').select('id,slug,title,description,active'),
-    supabase.from('articles').select('id,title,slug,status,published,category,featured,excerpt,content,source,source_url,author_name,review_status'),
+    supabase.from('articles').select('id,title,slug,published,category,featured,excerpt,content,source,source_url,author_name,review_status'),
     supabase.from('quiz_questions').select('id,question,active,game_type'),
     supabase.from('campaigns').select('id,name,description,active,starts_at,ends_at,banner_url,published'),
     role === 'admin' ? supabase.rpc('admin_list_users', { p_limit: 100 }) : Promise.resolve({ data: [], error: null }),

@@ -9,7 +9,6 @@ export async function GET() {
     .from('game_scenarios')
     .select('id,slug,title,description')
     .eq('active', true)
-    .order('created_at')
     .limit(2)
 
   if (error) {

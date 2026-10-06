@@ -45,11 +45,11 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="vi">
-      <body className={`${beVietnamPro.variable} antialiased`}>
+    <html lang="vi" suppressHydrationWarning>
+      <body suppressHydrationWarning className={`${beVietnamPro.variable} antialiased`}>
         <SharedNavigation />
         {children}
-        {process.env.NODE_ENV === 'production' && <Analytics />}
+        {process.env.VERCEL === '1' && <Analytics />}
       </body>
     </html>
   )

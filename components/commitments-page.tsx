@@ -17,7 +17,7 @@ export function CommitmentsPage({ commitments, total, user }: Props) {
   const visible = useMemo(() => filter === 'all' ? commitments : commitments.filter((item) => filter === item.class_name || filter === item.faculty), [commitments, filter])
 
   async function commit() {
-    if (!user) { window.location.href = '/auth/sign-in?next=/cam-ket'; return }
+    if (!user) { window.location.href = '/auth/login?next=/cam-ket'; return }
     const response = await fetch('/api/commitments', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: selected, displayName }) })
     if (response.ok) { setSaved(true); setMessage('Cam kết đã được ghi nhận.'); window.location.reload() }
     else setMessage('Không thể lưu cam kết lúc này.')

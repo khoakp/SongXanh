@@ -14,5 +14,23 @@ export async function GET(request: NextRequest) {
     p_page_size: 50,
   })
   if (error) return NextResponse.json({ error: 'Không thể tải bảng xếp hạng.' }, { status: 500 })
-  return NextResponse.json(data)
+  const payload = data && typeof data === 'object' ? data as Record<string, unknown> : {}
+  const people = Array.isArray(payload.people) ? payload.people.map((item, index) => {
+    const person = item && typeof item === 'object' ? item as Record<string, unknown> : {}
+    return {
+      id: String(person.id ?? `rank-${index + 1}`),
+      display_name: String(person.display_name ?? 'Ẩn danh'),
+      faculty: String(person.faculty ?? ''),
+      school: String(person.school ?? ''),
+      class_name: String(person.class_name ?? ''),
+      points: Number(person.points ?? 0),
+      rank: Number(person.rank ?? index + 1),
+    }
+  }) : []
+  return NextResponse.json({
+    people,
+    groups: Array.isArray(payload.groups) ? payload.groups : [],
+    me: payload.me && typeof payload.me === 'object' ? payload.me : {},
+    hasMore: Boolean(payload.hasMore),
+  })
 }
