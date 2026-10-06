@@ -17,5 +17,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: message }, { status })
   }
 
-  return NextResponse.json(data)
+  const { data: question } = await supabase.from('quiz_questions').select('explanation,source').eq('id', body.questionId).maybeSingle()
+  return NextResponse.json({ ...data, explanation: question?.explanation ?? null, source: question?.source ?? null })
 }
