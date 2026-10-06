@@ -14,3 +14,12 @@ __v0_jsx-dev-runtime.ts
 node_modules
 .next/
 .DS_Store
+
+# Local Codex content research / reports
+content-drafts.json
+content-sources.json
+content-baseline.json
+CONTENT_SOURCES.md
+GOAL_PROGRESS.md
+
+test-results
